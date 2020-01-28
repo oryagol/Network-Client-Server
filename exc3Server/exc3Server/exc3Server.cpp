@@ -23,6 +23,7 @@ struct SocketState
 };
 
 const int TIME_PORT = 27015;
+const double TIMEOUT = 10.0;
 const int MAX_SOCKETS = 60;
 const int EMPTY = 0;
 const int LISTEN = 1;
@@ -172,7 +173,19 @@ void main()
 			WSACleanup();
 			return;
 		}
+
 		double duration;
+		for (int i = 1; i < MAX_SOCKETS; i++) {
+			duration = (std::clock() - socketTimer[i]) / (double)CLOCKS_PER_SEC;
+			if (sockets[i].recv != EMPTY && duration > TIMEOUT)
+			{
+				SOCKET id = sockets[i].id;
+				cout << "Socket " << i << " Duration is " << duration << "\n";
+				closesocket(id);
+				removeSocket(i);
+				cout << "Socket Timeout, Closing Socket \n" << i;
+			}
+		}
 		for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
 		{
 			if (FD_ISSET(sockets[i].id, &waitRecv))
@@ -181,24 +194,14 @@ void main()
 				switch (sockets[i].recv)
 				{
 				case LISTEN:
-					acceptConnection(i);
 					socketTimer[i] = std::clock();
+					acceptConnection(i);
 					break;
 
 				case RECEIVE:
-					duration = (std::clock() - socketTimer[i]) / (double)CLOCKS_PER_SEC;
-					if (duration > 60.0)
-					{
-						closesocket(i);
-						removeSocket(i);
-						cout << "Socket Timeout, Closing Socket \n" << i;
-						break;
-					}
-					else {
-						socketTimer[i] = std::clock();
-						receiveMessage(i);
-						break;
-					}
+					socketTimer[i] = std::clock();
+					receiveMessage(i);
+					break;
 				}
 			}
 		}
@@ -230,6 +233,7 @@ bool addSocket(SOCKET id, int what)
 	{
 		if (sockets[i].recv == EMPTY)
 		{
+			socketTimer[i] = std::clock();
 			sockets[i].id = id;
 			sockets[i].recv = what;
 			sockets[i].send = IDLE;
@@ -243,6 +247,7 @@ bool addSocket(SOCKET id, int what)
 
 void removeSocket(int index)
 {
+	socketTimer[index] = 0;
 	sockets[index].recv = EMPTY;
 	sockets[index].send = EMPTY;
 	socketsCount--;

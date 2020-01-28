@@ -1,0 +1,3 @@
+﻿  exc3Client.cpp
+C:\CodeProjects\C++\exc3Client\exc3Client\exc3Client.cpp(15,1): warning C4326: return type of 'main' should be 'int' instead of 'void'
+  exc3Client.vcxproj -> C:\CodeProjects\C++\exc3Client\Debug\exc3Client.exe

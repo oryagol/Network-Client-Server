@@ -1,0 +1,3 @@
+﻿  exc3Server.cpp
+C:\CodeProjects\C++\exc3Server\exc3Server\exc3Server.cpp(47,1): warning C4326: return type of 'main' should be 'int' instead of 'void'
+  exc3Server.vcxproj -> C:\CodeProjects\C++\exc3Server\Debug\exc3Server.exe

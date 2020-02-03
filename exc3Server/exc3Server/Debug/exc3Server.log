@@ -1,2 +1,5 @@
 ﻿  exc3Server.cpp
-C:\Users\user\git\Network_Client_Server\exc3Server\exc3Server\exc3Server.cpp(48,1): warning C4326: return type of 'main' should be 'int' instead of 'void'
+C:\Users\user\git\Network_Client_Server\exc3Server\exc3Server\exc3Server.cpp(52,1): warning C4326: return type of 'main' should be 'int' instead of 'void'
+C:\Users\user\git\Network_Client_Server\exc3Server\exc3Server\exc3Server.cpp(526,20): warning C4018: '<': signed/unsigned mismatch
+C:\Users\user\git\Network_Client_Server\exc3Server\exc3Server\exc3Server.cpp(527,13): warning C4018: '<': signed/unsigned mismatch
+  exc3Server.vcxproj -> C:\Users\user\git\Network_Client_Server\exc3Server\Debug\exc3Server.exe

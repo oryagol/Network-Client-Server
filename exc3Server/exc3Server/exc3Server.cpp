@@ -12,6 +12,7 @@ using namespace std;
 #include <cstdio>
 #include <ctime>
 
+
 struct SocketState
 {
 	SOCKET id;			// Socket handle
@@ -23,7 +24,7 @@ struct SocketState
 };
 
 const int TIME_PORT = 27015;
-const double TIMEOUT = 10.0;
+const double TIMEOUT = 60.0;
 const int MAX_SOCKETS = 60;
 const int EMPTY = 0;
 const int LISTEN = 1;
@@ -32,12 +33,15 @@ const int IDLE = 3;
 const int SEND = 4;
 const int GET = 1;
 const int POST = 2;
+bool POSTVALID;
 
 bool addSocket(SOCKET id, int what);
 void removeSocket(int index);
 void acceptConnection(int index);
 void receiveMessage(int index);
 void sendMessage(int index);
+bool handlePost(int index);
+string normelizeContent(string content);
 
 struct SocketState sockets[MAX_SOCKETS] = { 0 };
 int socketsCount = 0;
@@ -331,6 +335,7 @@ void receiveMessage(int index)
 			}
 			else if (strncmp(request, "POST", 4) == 0)
 			{
+				POSTVALID = handlePost(index);
 				sockets[index].send = SEND;
 				sockets[index].sendSubType = POST;
 				memcpy(sockets[index].buffer, &sockets[index].buffer[4], sockets[index].len - 4);
@@ -353,27 +358,30 @@ void sendMessage(int index)
 	int bytesSent = 0;
 	char sendBuff[255];
 
-
 	SOCKET msgSocket = sockets[index].id;
+
+	char* request;
+	char* fileName;
+	char copyBuffer[255];
+	strcpy(copyBuffer, sockets[index].buffer);
+	char* copyBufferPtr = copyBuffer;
+	const char search[2] = " ";
+	request = strtok_s(copyBufferPtr, search, &copyBufferPtr);	// get first word
+	fileName = strtok_s(copyBufferPtr, search, &copyBufferPtr); // get second word
+	/**
+		getting the path of the file
+	*/
+	string name = fileName;
+	stringstream nameSS;
+	nameSS << "websites" << name;
+	name = nameSS.str();
+	ifstream file(name);
+	int code;
+	string content;
+
 	if (sockets[index].sendSubType == GET)
 	{
-		char* request;
-		char* fileName;
-		char copyBuffer[255];
-		strcpy(copyBuffer, sockets[index].buffer);
-		char* copyBufferPtr = copyBuffer;
-		const char search[2] = " ";
-		request = strtok_s(copyBufferPtr, search, &copyBufferPtr);	// get first word
-		fileName = strtok_s(copyBufferPtr, search, &copyBufferPtr); // get second word
-		string name = fileName;
-		stringstream nameSS;
-		nameSS << "websites\\" << name;
-		name = nameSS.str();
-		ifstream file(name);
-
-		int code;
-		string content;
-
+		// if we have found the file in the folder
 		if (file.good())
 		{
 			code = 200;
@@ -385,14 +393,16 @@ void sendMessage(int index)
 			code = 404;
 			content = "<h1>404 Not Found</h1>";
 		}
+		cout << content;
 		file.close();
+		/**
+			creating the header of the http response
+		*/
 		stringstream headerSS;
 		string header;
 		headerSS << "HTTP/1.1 " << code << " OK\r\n" << "Content-Type: text/html\r\n" <<
-			"Content-Length: " << content.size() << "\r\n\r\n";
+			"Content-Length: " << content.size() << "\r\n\r\n" << content;
 		header = headerSS.str();
-
-		cout << header;
 
 		int size = header.size() + 1;
 		int bytesSent = 0;
@@ -400,7 +410,39 @@ void sendMessage(int index)
 	}
 	else if (sockets[index].sendSubType == POST)
 	{
-		strcpy(sendBuff, "POST REQUEST");
+		// if the file that the client requested to post is valid and is not in the folder
+		if (POSTVALID) {
+			content = "<h2>The file was saved successfully!</h2>";
+			code = 200;
+			/**
+				creating the header of the http response
+			*/
+			stringstream headerSS;
+			string header;
+			headerSS << "HTTP/1.1 " << code << " OK\r\n" << "Content-Type: text/html\r\n" <<
+				"Content-Length: " << content.size() << "\r\n\r\n" << content;
+			header = headerSS.str();
+
+			int size = header.size() + 1;
+			int bytesSent = 0;
+			bytesSent = send(msgSocket, header.c_str(), size, 0);
+		}
+		// the file that the client requested to post is not valid because he is in the folder already
+		else
+		{
+			content = "<h2>The file is already in the folder!</h2>";
+			code = 404;
+
+			stringstream headerSS;
+			string header;
+			headerSS << "HTTP/1.1 " << code << " OK\r\n" << "Content-Type: text/html\r\n" <<
+				"Content-Length: " << content.size() << "\r\n\r\n" << content;
+			header = headerSS.str();
+
+			int size = header.size() + 1;
+			int bytesSent = 0;
+			bytesSent = send(msgSocket, header.c_str(), size, 0);
+		}
 	}
 
 	bytesSent = send(msgSocket, sendBuff, (int)strlen(sendBuff), 0);
@@ -413,4 +455,83 @@ void sendMessage(int index)
 	cout << "Time Server: Sent: " << bytesSent << "\\" << strlen(sendBuff) << " bytes of \"" << sendBuff << "\" message.\n";
 
 	sockets[index].send = IDLE;
+}
+
+/**
+	a method that organizing the content and file name and post it to the folder
+*/
+bool handlePost(int index) {
+	string getBuffer(sockets[index].buffer);
+	int fileNameIndex = getBuffer.find("?"); //finding the begining of the file name
+	int fileNameEndIndex;
+	if (fileNameIndex == -1) {
+		fileNameIndex = getBuffer.find("/");
+		fileNameEndIndex = getBuffer.find("HTTP/1.1");
+		fileNameEndIndex -= 1;
+	}
+	else
+		fileNameEndIndex = getBuffer.find("="); //finding the end of the file name
+	// getting the file name from the substring
+	string fileName = getBuffer.substr(fileNameIndex + 1, fileNameEndIndex - fileNameIndex - 1);
+
+	int contentIndex;
+	int endOfTextIndex;
+	string content;
+	cout << " " << getBuffer << "\n\n\n";
+	if (fileName.find("html") != string::npos) {
+		contentIndex = getBuffer.find("keep-alive"); //finding the begining of the content if it is html
+		content = getBuffer.substr(contentIndex+10);
+	}
+	else {
+		contentIndex = getBuffer.find("="); //finding the begining of the content if it is a text
+		endOfTextIndex = getBuffer.find("HTTP/1.1"); //finding the end of the content if it is a text
+		content = getBuffer.substr(contentIndex + 1, endOfTextIndex - contentIndex - 1);
+	}
+	cout << "first index is " << contentIndex;
+	// getting the content from the substring
+
+	ifstream fileToCheck("websites//" + fileName);
+	/**
+	checks if the file is already in the folder
+	*/
+	if (fileToCheck.good()) {
+		return false;
+	}
+	ofstream file("websites//" + fileName);
+		/**
+	if we get spaces in the buffer it apears in request as "%20" that we need to remove
+	*/
+	content = normelizeContent(content);
+	file << content;
+	file.close();
+	return true;
+}
+
+
+string normelizeContent(string content) {
+	stringstream normelizeContent;
+	int size = content.length() + 1;
+	/**
+	allocating memory to check the string as char array
+	*/
+	char* contentArr;
+	contentArr = new (nothrow) char[size];
+	if (contentArr == nullptr)
+		cout << "Error: memory could not be allocated";
+	string currWord;
+	strcpy(contentArr, content.c_str());
+	/**
+	searching for "%20" in the array that indicates there is a space
+	*/
+	for (int i = 0; i < content.length(); i++) {
+		if (i + 2 < content.length() && contentArr[i] == '%' && contentArr[i + 1] == '2' && contentArr[i + 2] == '0') {
+			i += 2;
+			normelizeContent << " ";
+		}
+		else
+			normelizeContent << contentArr[i];
+	}
+	content = normelizeContent.str();
+	delete[] contentArr; //releasing the allocation
+	return content;
 }

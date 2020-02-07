@@ -19,7 +19,7 @@ struct SocketState
 	int	recv;			// Receiving?
 	int	send;			// Sending?
 	int sendSubType;	// Sending sub-type
-	char buffer[128];
+	char buffer[1000];
 	int len;
 };
 
@@ -317,7 +317,7 @@ void receiveMessage(int index)
 
 		char* request;
 		char* fileName;
-		char copyBuffer[255];
+		char copyBuffer[1000];
 		strcpy(copyBuffer, sockets[index].buffer);
 		char* copyBufferPtr = copyBuffer;
 		const char search[2] = " ";
@@ -335,11 +335,10 @@ void receiveMessage(int index)
 			}
 			else if (strncmp(request, "POST", 4) == 0)
 			{
-				POSTVALID = handlePost(index);
 				sockets[index].send = SEND;
 				sockets[index].sendSubType = POST;
-				memcpy(sockets[index].buffer, &sockets[index].buffer[4], sockets[index].len - 4);
-				sockets[index].len -= 4;
+				memcpy(sockets[index].buffer, &sockets[index].buffer[10], sockets[index].len - bytesRecv);
+				sockets[index].len -= 10;
 				return;
 			}
 			else if (strncmp(request, "EXIT", 4) == 0)
@@ -362,7 +361,7 @@ void sendMessage(int index)
 
 	char* request;
 	char* fileName;
-	char copyBuffer[255];
+	char copyBuffer[1000];
 	strcpy(copyBuffer, sockets[index].buffer);
 	char* copyBufferPtr = copyBuffer;
 	const char search[2] = " ";
@@ -410,6 +409,7 @@ void sendMessage(int index)
 	}
 	else if (sockets[index].sendSubType == POST)
 	{
+		POSTVALID = handlePost(index);
 		// if the file that the client requested to post is valid and is not in the folder
 		if (POSTVALID) {
 			content = "<h2>The file was saved successfully!</h2>";
@@ -464,30 +464,29 @@ bool handlePost(int index) {
 	string getBuffer(sockets[index].buffer);
 	int fileNameIndex = getBuffer.find("?"); //finding the begining of the file name
 	int fileNameEndIndex;
-	if (fileNameIndex == -1) {
+	if (fileNameIndex == -1) { //if we cant find the fileNameIndex by ? it means it is html post and not text post
 		fileNameIndex = getBuffer.find("/");
 		fileNameEndIndex = getBuffer.find("HTTP/1.1");
 		fileNameEndIndex -= 1;
 	}
 	else
-		fileNameEndIndex = getBuffer.find("="); //finding the end of the file name
+		fileNameEndIndex = getBuffer.find("="); //finding the end of the file name if it is text post
 	// getting the file name from the substring
 	string fileName = getBuffer.substr(fileNameIndex + 1, fileNameEndIndex - fileNameIndex - 1);
 
 	int contentIndex;
 	int endOfTextIndex;
 	string content;
-	cout << " " << getBuffer << "\n\n\n";
+
 	if (fileName.find("html") != string::npos) {
-		contentIndex = getBuffer.find("keep-alive"); //finding the begining of the content if it is html
-		content = getBuffer.substr(contentIndex+10);
+		contentIndex = getBuffer.find("<html>"); //finding the begining of the content if it is html
+		content = getBuffer.substr(contentIndex);
 	}
 	else {
 		contentIndex = getBuffer.find("="); //finding the begining of the content if it is a text
 		endOfTextIndex = getBuffer.find("HTTP/1.1"); //finding the end of the content if it is a text
 		content = getBuffer.substr(contentIndex + 1, endOfTextIndex - contentIndex - 1);
 	}
-	cout << "first index is " << contentIndex;
 	// getting the content from the substring
 
 	ifstream fileToCheck("websites//" + fileName);
@@ -501,7 +500,8 @@ bool handlePost(int index) {
 		/**
 	if we get spaces in the buffer it apears in request as "%20" that we need to remove
 	*/
-	content = normelizeContent(content);
+	if(fileNameIndex != -1)
+		content = normelizeContent(content);
 	file << content;
 	file.close();
 	return true;

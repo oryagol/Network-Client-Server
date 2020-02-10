@@ -168,9 +168,11 @@ void main()
 		// Wait for interesting event.
 		// Note: First argument is ignored. The fourth is for exceptions.
 		// And as written above the last is a timeout, hence we are blocked if nothing happens.
-		//
+		struct timeval checkTime;
+		checkTime.tv_sec = 5; // the select command will occur every this parameter seconds
+		checkTime.tv_usec = 0;
 		int nfd;
-		nfd = select(0, &waitRecv, &waitSend, NULL, NULL);
+		nfd = select(0, &waitRecv, &waitSend, NULL, &checkTime);
 		if (nfd == SOCKET_ERROR)
 		{
 			cout << "Time Server: Error at select(): " << WSAGetLastError() << endl;
@@ -180,14 +182,14 @@ void main()
 
 		double duration;
 		for (int i = 1; i < MAX_SOCKETS; i++) {
-			duration = (std::clock() - socketTimer[i]) / (double)CLOCKS_PER_SEC;
-			if (sockets[i].recv != EMPTY && duration > TIMEOUT)
+			duration = (std::clock() - socketTimer[i]) / (double)CLOCKS_PER_SEC; // check the amount of time since last request
+			if (sockets[i].recv != EMPTY && duration > TIMEOUT) // if its an open socket and it has been timeout
 			{
 				SOCKET id = sockets[i].id;
 				cout << "Socket " << i << " Duration is " << duration << "\n";
 				closesocket(id);
 				removeSocket(i);
-				cout << "Socket Timeout, Closing Socket \n" << i;
+				cout << "Socket Timeout, Closing Socket " << i << "\n";
 			}
 		}
 		for (int i = 0; i < MAX_SOCKETS && nfd > 0; i++)
